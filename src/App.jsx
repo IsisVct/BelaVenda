@@ -109,9 +109,7 @@ function ResetPasswordScreen() {
 
 // ── APP ───────────────────────────────────────────────────────────────────────
 export default function App() {
-  const { user, loading: authLoading } = useAuth();
-  const hash = window.location.hash;
-  const isRecovery = hash.includes("type=recovery");
+  const { user, loading: authLoading, isRecovery } = useAuth();
 
   if (authLoading) return (
     <div className="min-h-screen flex items-center justify-center"
