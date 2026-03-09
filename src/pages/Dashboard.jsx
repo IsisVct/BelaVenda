@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
-export default function Dashboard({ clients, orders, stock, installments, loading }) {
+export default function Dashboard({ clients, orders, stock, installments, loading, user }) {
   if (loading) return <Spinner />;
   const paid    = orders.filter(o => o.status === "pago");
   const pend    = orders.filter(o => o.status === "pendente");
@@ -36,7 +36,7 @@ export default function Dashboard({ clients, orders, stock, installments, loadin
         <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <div className="flex items-center gap-1.5 mb-1"><Sparkles size={13} className="text-rose-200" /><span className="text-rose-200 text-xs font-medium">Bem-vinda de volta!</span></div>
-            <h1 className="text-white font-bold text-2xl">BelaVenda ✨</h1>
+            <h1 className="text-white font-bold text-2xl">Olá, {user?.user_metadata?.name?.split(" ")[0] || "Revendedora"} ✨</h1>
             <p className="text-rose-200 text-sm mt-0.5">{now.toLocaleString("pt-BR", { month: "long", year: "numeric" })}</p>
           </div>
           <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-4 border border-white/20 md:min-w-60">

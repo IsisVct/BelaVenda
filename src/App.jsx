@@ -24,11 +24,94 @@ import NotificationsPanel from "./components/NotificationsPanel";
 // Constants & helpers
 import { NAV_ITEMS, isOverdue, isDueSoon } from "./constants";
 
-import { Sparkles, Bell, AlertTriangle, LogOut } from "lucide-react";
+import { Sparkles, Bell, AlertTriangle, LogOut, Lock, Eye, EyeOff } from "lucide-react";
+
+
+// ── RESET PASSWORD SCREEN ─────────────────────────────────────────────────────
+function ResetPasswordScreen() {
+  const [password, setPass]   = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [showPw, setShowPw]   = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+  const [success, setSuccess] = useState(false);
+
+  const handle = async () => {
+    if (password.length < 6) return setError("A senha deve ter pelo menos 6 caracteres.");
+    if (password !== confirm) return setError("As senhas não coincidem.");
+    setError(""); setLoading(true);
+    const { error: e } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (e) return setError(e.message);
+    setSuccess(true);
+    setTimeout(() => supabase.auth.signOut(), 2500);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4"
+      style={{ background: "linear-gradient(135deg, #fce4ec 0%, #f3e5f5 50%, #ede7f6 100%)", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
+      <div className="relative w-full max-w-sm">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg mx-auto mb-4"
+            style={{ background: "linear-gradient(135deg, #E91E8C, #9C27B0)" }}>
+            <Sparkles size={28} className="text-white" />
+          </div>
+          <h1 className="text-2xl font-bold">
+            <span style={{ color: "#E91E8C" }}>Bela</span>
+            <span className="text-gray-700">Venda</span>
+          </h1>
+        </div>
+        <div className="bg-white rounded-3xl shadow-xl p-6">
+          <h2 className="text-lg font-bold text-gray-800 mb-1">Nova senha</h2>
+          <p className="text-xs text-gray-400 mb-5">Digite sua nova senha abaixo.</p>
+          {success ? (
+            <div className="text-center py-4">
+              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
+                <Lock size={22} className="text-green-500" />
+              </div>
+              <p className="font-semibold text-gray-800">Senha alterada!</p>
+              <p className="text-xs text-gray-400 mt-1">Redirecionando para o login...</p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3 mb-4">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><Lock size={16} /></span>
+                  <input value={password} onChange={e => setPass(e.target.value)}
+                    type={showPw ? "text" : "password"} placeholder="Nova senha"
+                    className="w-full pl-9 pr-10 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-rose-400 focus:bg-white transition-all" />
+                  <button onClick={() => setShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><Lock size={16} /></span>
+                  <input value={confirm} onChange={e => setConfirm(e.target.value)}
+                    type={showPw ? "text" : "password"} placeholder="Confirmar nova senha"
+                    onKeyDown={e => e.key === "Enter" && handle()}
+                    className="w-full pl-9 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-rose-400 focus:bg-white transition-all" />
+                </div>
+              </div>
+              {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
+              <button onClick={handle} disabled={loading}
+                className="w-full py-3 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+                style={{ background: "linear-gradient(135deg, #E91E8C, #9C27B0)" }}>
+                {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Lock size={16} />}
+                Salvar nova senha
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── APP ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const { user, loading: authLoading } = useAuth();
+  const hash = window.location.hash;
+  const isRecovery = hash.includes("type=recovery");
 
   if (authLoading) return (
     <div className="min-h-screen flex items-center justify-center"
@@ -43,6 +126,7 @@ export default function App() {
     </div>
   );
 
+  if (user && isRecovery) return <ResetPasswordScreen />;
   if (!user) return <LoginScreen />;
   return <AppShell user={user} />;
 }
@@ -70,7 +154,7 @@ function AppShell({ user }) {
   const userInitial = (user?.user_metadata?.name || user?.email || "B")[0].toUpperCase();
 
   const pages = {
-    dashboard: <Dashboard clients={clients} orders={orders} stock={stock} installments={installments} loading={globalLoading} />,
+    dashboard: <Dashboard clients={clients} orders={orders} stock={stock} installments={installments} loading={globalLoading} user={user} />,
     clients:   <Clients   clients={clients} orders={orders} add={addClient} update={updateClient} remove={removeClient} loading={lc} />,
     orders:    <Orders    orders={orders} clients={clients} add={addOrder} update={updateOrder} toggleStatus={toggleStatus} remove={removeOrder} loading={lo} />,
     debts:     <Debts     orders={orders} clients={clients} installments={installments} payInstallment={payInstallment} payAllByClient={payAllByClient} toggleStatus={toggleStatus} />,
