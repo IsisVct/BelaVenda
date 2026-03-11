@@ -15,14 +15,15 @@ import Orders    from "./pages/Orders";
 import Debts     from "./pages/Debts";
 import Stock     from "./pages/Stock";
 import Finance   from "./pages/Finance";
-import Catalog   from "./pages/Catalog";
+import Catalog     from "./pages/Catalog";
+import ImportNota  from "./pages/ImportNota";
 
 // Components
 import LoginScreen        from "./components/LoginScreen";
 import NotificationsPanel from "./components/NotificationsPanel";
 
 // Constants & helpers
-import { NAV_ITEMS, isOverdue, isDueSoon } from "./constants";
+import { NAV_ITEMS, isOverdue, isDueSoon } from "./data/constants";
 
 import { Sparkles, Bell, AlertTriangle, LogOut, Lock, Eye, EyeOff } from "lucide-react";
 
@@ -159,6 +160,7 @@ function AppShell({ user }) {
     stock:     <Stock     stock={stock} add={addStock} update={updateStock} updateQty={updateQty} remove={removeStock} loading={ls} />,
     finance:   <Finance   orders={orders} installments={installments} payInstallment={payInstallment} loading={lo} />,
     catalog:   <Catalog />,
+    import:    <ImportNota addStock={addStock} updateStock={updateStock} stock={stock} addOrder={addOrder} clients={clients} />,
   };
 
   return (

@@ -30,7 +30,7 @@ export default function Dashboard({ clients, orders, stock, installments, loadin
 
   return (
     <div>
-      <div className="relative px-5 pt-12 pb-8 md:pt-6 md:rounded-2xl overflow-hidden" style={{ background: "linear-gradient(135deg, #E91E8C 0%, #9C27B0 100%)" }}>
+      <div className="mb-5 relative px-5 pt-12 pb-8 md:pt-6 md:rounded-2xl overflow-hidden" style={{ background: "linear-gradient(135deg, #E91E8C 0%, #9C27B0 100%)" }}>
         <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/10" />
         <div className="absolute top-4 -right-4 w-24 h-24 rounded-full bg-white/10" />
         <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -47,7 +47,7 @@ export default function Dashboard({ clients, orders, stock, installments, loadin
         </div>
       </div>
 
-      <div className="px-4 md:px-0 -mt-3 md:mt-4 space-y-4 pb-6">
+      <div className="px-4 md:px-0 md:mt-4 space-y-4 pb-6">
         {overdueInst.length > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
             <AlertTriangle size={16} className="text-red-500 mt-0.5 shrink-0" />
