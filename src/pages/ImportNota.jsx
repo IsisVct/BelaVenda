@@ -18,36 +18,116 @@ function detectBrand(text) {
 
 // ── Extrair produtos do texto da NF ──────────────────────────────────────────
 function extractItems(text) {
+
   const items = [];
-  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+  text = text.replace(/Nº:\s*\d+\s*Série:.*?CÓD\. PROD\.\s*DESCRIÇÃO DO PRODUTO \/ SERVIÇO/gi, "CÓD. PROD. DESCRIÇÃO DO PRODUTO / SERVIÇO");
+  // remove cabeçalhos de páginas intermediárias da DANFE
+text = text.replace(
+  /Nº:\s*\d+\s*Série:.*?Consulta de autenticidade.*?Protocolo de autorização.*?Nosso Pedido nº.*?CÓD\. PROD\./gis,
+  "CÓD. PROD."
+);
+// ── corta cabeçalho da DANFE ──
+  const start = text.indexOf("CÓD. PROD.");
+  if (start !== -1) {
+    text = text.slice(start);
+  }
+  const end = text.indexOf("DADOS ADICIONAIS");
+  if (end !== -1) {
+    text = text.slice(0, end);
+  }
+  // remove a linha do cabeçalho da tabela
+  text = text.replace(
+    /CÓD\.\s*PROD\.\s*DESCRIÇÃO\s*DO\s*PRODUTO\s*\/\s*SERVIÇO.*?ALIQ\.\s*IPI/gi,
+    ""
+  );
+  // ── Normaliza o texto ─────────────────────
+  let flat = text
+  .replace(/\r/g, "")
 
-  // Regex para linha de produto NF:
-  // CÓD  DESCRIÇÃO ... QUANT  V.UNIT  V.TOTAL ...
-  // Ex: "47908 DREAM DES COL SPLSH VIAG/ENC 200ml V2 ... PEC 1 93,42 93,42 ..."
-  const lineRe = /^\d{4,8}\s+(.+?)\s+\d{4}\.\d{2}\.\d{2}.*?\s+(?:PEC|UN|PCT|CX)\s+(\d+)\s+([\d.,]+)/i;
+  // remove UUID
+  .replace(/[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}/gi, "")
 
-  for (const line of lines) {
-    const m = line.match(lineRe);
-    if (!m) continue;
+  // remove restos de UUID quebrado
+  .replace(/[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-/gi, "")
+  .replace(/-[A-F0-9]{4}-[A-F0-9]{12}/gi, "")
 
-    let name = m[1].trim();
-    const qty  = parseInt(m[2]);
-    const cost = parseFloat(m[3].replace(/\./g, "").replace(",", "."));
+  // junta linhas
+  .replace(/\n/g, " ")
 
-    // Limpar UUIDs e códigos do nome
-    name = name.replace(/[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}/gi, "").trim();
-    name = name.replace(/\s{2,}/g, " ").trim();
+  // limpa espaços
+  .replace(/\s{2,}/g, " ")
+  .trim();
+// remove possíveis pedaços de cabeçalho restantes
+flat = flat.replace(/Nº:\s*\d+\s*Série:[^0-9]+/gi, "");
+  // ── Regex de produto da DANFE ─────────────
+  const re =
+    /(\d{5,6})\s+(.+?)\s+(\d{4}\.\d{2}\.\d{2}[\w.]*)\s+\d+\s+\d+\s+(PEC|UN|PCT|CX)\s+(\d+)\s+([\d,]+)/gi;
 
-    // Ignorar catálogos e itens sem nome
-    if (!name || name.length < 3) continue;
+  let m;
+
+  while ((m = re.exec(flat)) !== null) {
+
+      // DEPOIS:
+    let name = m[2].trim();
+    name = name.replace(/^\d{5,6}\s*/, "");
+    // remove fragmento de UUID partido que ficou no nome
+    name = name.replace(/\s+[A-F0-9]{8}-\s*[A-F0-9]{4}-[A-F0-9]{0,4}\s*$/i, "").trim();
+    name = name.replace(/\s+[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{8,12}\s*$/i, "").trim();
+
+    const qty = parseInt(m[5]);
+    const cost = parseFloat(m[6].replace(",", "."));
+
+    if (!name) continue;
+
+    // ignora catálogos
     if (/CATALOGO/i.test(name)) continue;
 
     if (qty > 0 && cost > 0) {
-      items.push({ id: items.length, name, qty, cost, sale_price: "", include: true });
+
+      items.push({
+        id: items.length,
+        name,
+        qty,
+        cost,
+        sale_price: "",
+        include: true
+      });
+
     }
+
   }
 
   return items;
+}
+
+// ── FUNÇÃO QUE INTERPRETA UM PRODUTO ─────────────────────
+function parseProduct(text) {
+
+  if (!text) return null;
+
+  // ignora linhas que não são produto
+  if (/CATALOGO|RECEBEMOS|CHAVE DE|CÓD\. PROD/i.test(text)) return null;
+
+  const match = text.match(
+    /^\d{5,6}\s+(.+?)\s+(\d{4}\.\d{2}\.\d{2}[\w.]*)\s+\d+\s+\d+\s+(PEC|UN|PCT|CX)\s+(\d+)\s+([\d,]+)/
+  );
+
+  if (!match) return null;
+
+  let name = match[1].trim();
+
+  const qty = parseInt(match[4]);
+  const cost = parseFloat(match[5].replace(",", "."));
+
+  if (!name || name.length < 3) return null;
+  if (!qty || !cost) return null;
+
+  return {
+    name,
+    qty,
+    cost
+  };
+
 }
 
 // ── Carregar PDF.js do CDN ────────────────────────────────────────────────────
@@ -75,7 +155,19 @@ async function extractPdfText(file) {
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
-    fullText += content.items.map(it => it.str).join(" ") + "\n";
+    // Preservar quebras de linha usando o campo hasEOL ou variação de Y
+    let lastY = null;
+    let pageLine = "";
+    for (const item of content.items) {
+      const y = item.transform ? Math.round(item.transform[5]) : null;
+      if (lastY !== null && y !== null && Math.abs(y - lastY) > 2) {
+        fullText += pageLine.trim() + "\n";
+        pageLine = "";
+      }
+      pageLine += item.str + " ";
+      lastY = y;
+    }
+    if (pageLine.trim()) fullText += pageLine.trim() + "\n";
   }
   return fullText;
 }

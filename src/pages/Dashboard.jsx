@@ -5,7 +5,6 @@ import {
   Sparkles, Users, ShoppingBag, AlertCircle, TrendingUp, AlertTriangle, Clock,
 } from "lucide-react";
 
-// ── DASHBOARD ─────────────────────────────────────────────────────────────────
 export default function Dashboard({ clients, orders, stock, installments, loading, user }) {
   if (loading) return <Spinner />;
   const paid    = orders.filter(o => o.status === "pago");
@@ -17,7 +16,6 @@ export default function Dashboard({ clients, orders, stock, installments, loadin
   const overdueInst = installments.filter(i => isOverdue(i.due_date, i.status));
   const dueSoonInst = installments.filter(i => isDueSoon(i.due_date, i.status));
   const overdueAmt  = overdueInst.reduce((s, i) => s + Number(i.amount), 0);
-  const lowStock    = stock.filter(s => s.qty <= 3);
   const now = new Date();
   const months = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
@@ -96,19 +94,6 @@ export default function Dashboard({ clients, orders, stock, installments, loadin
             </div>
           )}
         </div>
-
-        {lowStock.length > 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-            <p className="font-bold text-amber-800 mb-2 text-sm flex items-center gap-1.5"><AlertTriangle size={14} /> Estoque Baixo</p>
-            <div className="grid grid-cols-2 gap-2">
-              {lowStock.map(s => (
-                <div key={s.id} className="text-sm text-amber-700 flex justify-between bg-white rounded-xl px-3 py-2 border border-amber-100">
-                  <span className="truncate">{s.name}</span><span className="font-bold ml-2">{s.qty} un.</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div className="bg-white rounded-2xl shadow-sm border border-rose-50 overflow-hidden">
           <div className="px-4 py-3 border-b border-rose-50">

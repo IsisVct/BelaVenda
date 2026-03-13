@@ -4,7 +4,6 @@ import { Spinner, Toast, Modal, Field, inp, Btn, BrandChip, useToast } from "../
 import { ProductAutocomplete } from "../components/ProductAutocomplete";
 import { Package, Search, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react";
 
-// ── STOCK ─────────────────────────────────────────────────────────────────────
 export default function Stock({ stock, add, update, updateQty, remove, loading }) {
   const [modal, setModal]     = useState(false);
   const [editItem, setEditItem] = useState(null);
@@ -76,7 +75,7 @@ export default function Stock({ stock, add, update, updateQty, remove, loading }
         {outCount > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-2xl p-3 flex items-center gap-2.5">
             <AlertTriangle size={15} className="text-red-500 shrink-0" />
-            <p className="text-xs text-red-700"><strong>{outCount} produto(s)</strong> sem estoque — hora de reabastecer!</p>
+            <p className="text-xs text-red-700"><strong>{outCount} produto(s)</strong> sem estoque.</p>
           </div>
         )}
 
@@ -87,11 +86,9 @@ export default function Stock({ stock, add, update, updateQty, remove, loading }
             {filtered.map(s => {
               const b = BRAND_MAP[s.brand];
               const isOut = s.qty === 0;
-              const isLow = !isOut && s.qty <= 2;
               const margin = s.sale_price > 0 ? (((Number(s.sale_price)-Number(s.cost_price))/Number(s.sale_price))*100).toFixed(0) : 0;
               return (
-                <div key={s.id} className="bg-white rounded-2xl shadow-sm border overflow-hidden"
-                  style={{ borderColor: isOut ? "#fecaca" : isLow ? "#fef08a" : "#fff1f2" }}>
+                <div key={s.id} className="bg-white rounded-2xl shadow-sm border border-rose-50 overflow-hidden">
                   <div className="p-4">
                     <div className="flex items-start gap-3">
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background:b?.light||"#f9fafb" }}>
@@ -123,9 +120,9 @@ export default function Stock({ stock, add, update, updateQty, remove, loading }
                         </button>
                       </div>
                     </div>
-                    <p className="text-[10px] font-semibold mt-2 text-right" style={{ color:isOut?"#EF4444":isLow?"#F59E0B":"#10B981" }}>
-                      {isOut ? "⚠️ Sem estoque" : isLow ? `⚠️ Estoque baixo: ${s.qty}` : `✓ ${s.qty} unidades`}
-                    </p>
+                    {isOut && (
+                      <p className="text-[10px] font-semibold mt-2 text-right text-red-500">⚠️ Sem estoque</p>
+                    )}
                   </div>
                 </div>
               );

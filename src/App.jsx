@@ -155,7 +155,7 @@ function AppShell({ user }) {
   const pages = {
     dashboard: <Dashboard clients={clients} orders={orders} stock={stock} installments={installments} loading={globalLoading} user={user} />,
     clients:   <Clients   clients={clients} orders={orders} add={addClient} update={updateClient} remove={removeClient} loading={lc} />,
-    orders:    <Orders    orders={orders} clients={clients} add={addOrder} update={updateOrder} toggleStatus={toggleStatus} remove={removeOrder} loading={lo} />,
+    orders: <Orders orders={orders} clients={clients} add={addOrder} update={updateOrder} toggleStatus={toggleStatus} remove={removeOrder} loading={lo} stock={stock} updateQty={updateQty} />,
     debts:     <Debts     orders={orders} clients={clients} installments={installments} payInstallment={payInstallment} payAllByClient={payAllByClient} toggleStatus={toggleStatus} />,
     stock:     <Stock     stock={stock} add={addStock} update={updateStock} updateQty={updateQty} remove={removeStock} loading={ls} />,
     finance:   <Finance   orders={orders} installments={installments} payInstallment={payInstallment} loading={lo} />,

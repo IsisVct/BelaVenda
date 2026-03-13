@@ -7,7 +7,7 @@ import { InstallmentsEditor } from "../components/InstallmentsEditor";
 import { ShoppingBag, Search, Plus, Check, Pencil, Trash2, ChevronDown } from "lucide-react";
 
 // ── ORDERS ────────────────────────────────────────────────────────────────────
-export default function Orders({ orders, clients, add, update, toggleStatus, remove, loading }) {
+export default function Orders({ orders, clients, add, update, toggleStatus, remove, loading, stock, updateQty }) {
   const [modal, setModal]       = useState(false);
   const [editModal, setEditModal] = useState(null);
   const [filter, setFilter]     = useState("todos");
@@ -37,8 +37,14 @@ export default function Orders({ orders, clients, add, update, toggleStatus, rem
     const client = clients.find(c => c.id === form.clientId);
     const { error } = await add(form, client?.name || "", items, installments);
     setSaving(false);
-    if (error) return show("Erro ao salvar.", "error");
-    resetForm(); setModal(false); show("Pedido salvo! ✅");
+    if (!error) {
+      for (const it of items) {
+        const inStock = stock.find(s =>
+          s.name.toLowerCase().trim() === it.product?.toLowerCase().trim() && s.brand === it.brand
+        );
+        if (inStock) await updateQty(inStock.id, -Number(it.qty));
+      }
+    }
   };
 
   const saveEdit = async () => {
@@ -48,6 +54,7 @@ export default function Orders({ orders, clients, add, update, toggleStatus, rem
     if (error) return show("Erro.", "error");
     setEditModal(null); show("Pedido atualizado! ✅");
   };
+  
 
   return (
     <div>
@@ -148,7 +155,7 @@ export default function Orders({ orders, clients, add, update, toggleStatus, rem
             </select>
           </Field>
           <Field label="Data"><input type="date" className={inp} value={form.date} onChange={e => f({ date: e.target.value })} /></Field>
-          <ItemsEditor items={items} setItems={setItems} />
+          <ItemsEditor items={items} setItems={setItems} stock={stock} />          
           <Field label="Status">
             <select className={inp} value={form.status} onChange={e => f({ status: e.target.value })}>
               <option value="pendente">⏳ Pendente (fiado)</option>
