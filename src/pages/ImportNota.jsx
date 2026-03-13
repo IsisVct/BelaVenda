@@ -249,6 +249,15 @@ export default function ImportNota({ addStock, updateStock, stock, addOrder, cli
         []
       );
     }
+    // após o loop de addStock/updateStock, adiciona:
+    const productUpserts = selected.map(it => ({
+      name: it.name,
+      brand: brand,
+    }));
+
+    await supabase
+      .from("products")
+      .upsert(productUpserts, { onConflict: "name,brand", ignoreDuplicates: true });
 
     setStage("done");
     show(`${selected.length} produtos importados! ✅`);

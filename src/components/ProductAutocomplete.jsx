@@ -9,6 +9,7 @@ export function ProductAutocomplete({ value, onChange, onSelect, placeholder = "
   const ref = useRef(null);
 
   const suggestions = useMemo(() => {
+  console.log("products:", products.length, "stock:", stock.length, "value:", value);
     if (!value || value.length < 2) return [];
     const q = value.toLowerCase();
 
