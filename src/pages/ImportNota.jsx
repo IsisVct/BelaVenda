@@ -218,51 +218,123 @@ export default function ImportNota({ addStock, updateStock, stock, addOrder, cli
   const removeItem = (id) => setItems(p => p.filter(it => it.id !== id));
   const addItem = () => setItems(p => [...p, { id: Date.now(), name: "", qty: 1, cost: 0, sale_price: "", include: true }]);
 
-  const save = async () => {
+const save = async () => {
+
+  try {
+
     const selected = items.filter(it => it.include && it.name.trim());
-    if (!selected.length) return show("Selecione ao menos um produto.", "error");
+
+    if (!selected.length) {
+      show("Selecione ao menos um produto.", "error");
+      return;
+    }
+
     setStage("saving");
 
+    console.log("Produtos selecionados:", selected);
+
+    // Atualiza estoque
     for (const it of selected) {
+
       const existing = stock.find(s =>
-        s.name.toLowerCase().trim() === it.name.toLowerCase().trim() && s.brand === brand
+        s.name.toLowerCase().trim() === it.name.toLowerCase().trim() &&
+        s.brand === brand
       );
+
       if (existing) {
+
+        console.log("Atualizando produto:", existing.name);
+
         await updateStock(existing.id, {
-          name: existing.name, brand: existing.brand,
+          name: existing.name,
+          brand: existing.brand,
           qty: String(existing.qty + it.qty),
           costPrice: String(it.cost),
           salePrice: String(it.sale_price || existing.sale_price || ""),
           notes: existing.notes || "",
         });
+
       } else {
-        await addStock({ name: it.name, brand, qty: String(it.qty), costPrice: String(it.cost), salePrice: String(it.sale_price || ""), notes: "" });
+
+        console.log("Criando produto:", it.name);
+
+        await addStock({
+          name: it.name,
+          brand,
+          qty: String(it.qty),
+          costPrice: String(it.cost),
+          salePrice: String(it.sale_price || ""),
+          notes: "",
+        });
+
       }
+
     }
 
+    // Criar pedido se tiver cliente
     if (clientId) {
+
       const client = clients.find(c => c.id === clientId);
+
       await addOrder(
-        { clientId, date, status: "pendente", notes: `Nota: ${fileName}` },
+        {
+          clientId,
+          date,
+          status: "pendente",
+          notes: `Nota: ${fileName}`
+        },
         client?.name || "",
-        selected.map(it => ({ product: it.name, brand, qty: it.qty, unit_price: it.sale_price || it.cost, cost: it.cost })),
+        selected.map(it => ({
+          product: it.name,
+          brand,
+          qty: it.qty,
+          unit_price: it.sale_price || it.cost,
+          cost: it.cost
+        })),
         []
       );
+
     }
-    // após o loop de addStock/updateStock, adiciona:
+
+    // Salvar produtos no Supabase
     const productUpserts = selected.map(it => ({
       name: it.name,
-      brand: brand,
+      brand: brand
     }));
 
-    await supabase
+    console.log("Enviando para Supabase:", productUpserts);
+
+    const { data, error } = await supabase
       .from("products")
-      .upsert(productUpserts, { onConflict: "name,brand", ignoreDuplicates: true });
+      .upsert(productUpserts, {
+        onConflict: "name,brand",
+        ignoreDuplicates: true
+      });
+
+    if (error) {
+
+      console.error("Erro Supabase:", error);
+      throw new Error(error.message);
+
+    }
+
+    console.log("Supabase OK:", data);
 
     setStage("done");
-    show(`${selected.length} produtos importados! ✅`);
-  };
 
+    show(`${selected.length} produtos importados! ✅`);
+
+  } catch (err) {
+
+    console.error("Erro ao salvar:", err);
+
+    setStage("reviewing");
+
+    show("Erro ao salvar produtos.", "error");
+
+  }
+
+};
   const reset = () => {
     setStage("idle"); setItems([]); setBrand(""); setClientId(""); setError(""); setFileName(""); setDate(today());
   };
