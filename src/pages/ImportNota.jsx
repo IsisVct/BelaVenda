@@ -306,7 +306,7 @@ const save = async () => {
 
     const { data, error } = await supabase
       .from("products")
-      .upsert(produtos, {
+      .upsert(productUpserts, {
         onConflict: "name,brand",
         ignoreDuplicates: true
       });
