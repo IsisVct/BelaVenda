@@ -5,7 +5,7 @@ import {
   Upload, FileText, Check, X, Trash2, Plus,
   Package, AlertTriangle, ShoppingBag, ChevronRight,
 } from "lucide-react";
-import { supabase } from "../lib/supabase";
+import supabase from "../lib/supabase";
 // ── Detectar marca pelo texto ─────────────────────────────────────────────────
 function detectBrand(text) {
   const t = text.toUpperCase();
