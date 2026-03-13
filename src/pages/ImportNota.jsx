@@ -306,7 +306,7 @@ const save = async () => {
 
     const { data, error } = await supabase
       .from("products")
-      .upsert(productUpserts, {
+      .upsert(produtos, {
         onConflict: "name,brand",
         ignoreDuplicates: true
       });
@@ -335,13 +335,6 @@ const save = async () => {
   }
 
 };
-/*************  ✨ Windsurf Command ⭐  *************/
-/**
- * Reset all state variables to their default values.
- * This is called when the user wants to start over with a new PDF file.
- * @returns {void}
- */
-/*******  cac61d6a-d56c-4af9-b74e-08ee9e7742ee  *******/
   const reset = () => {
     setStage("idle"); setItems([]); setBrand(""); setClientId(""); setError(""); setFileName(""); setDate(today());
   };
