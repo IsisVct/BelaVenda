@@ -1,11 +1,86 @@
 import { useState, useRef } from "react";
-import { BRANDS, BRAND_MAP, fmt, today } from "../constants";
+import { BRANDS, fmt, today } from "../constants";
 import { Toast, useToast, inp, Field } from "../components/ui";
 import {
-  Upload, FileText, Sparkles, Check, X, Trash2, Plus,
+  Upload, FileText, Check, X, Trash2, Plus,
   Package, AlertTriangle, ShoppingBag, ChevronRight,
 } from "lucide-react";
 
+// ── Detectar marca pelo texto ─────────────────────────────────────────────────
+function detectBrand(text) {
+  const t = text.toUpperCase();
+  if (t.includes("BOTICARIO") || t.includes("BOTICÁRIO")) return "boticario";
+  if (t.includes("NATURA COSMETICOS") || t.includes("NATURA COSMÉTICOS")) return "natura";
+  if (t.includes("AVON"))   return "avon";
+  if (t.includes("EUDORA")) return "eudora";
+  return "";
+}
+
+// ── Extrair produtos do texto da NF ──────────────────────────────────────────
+function extractItems(text) {
+  const items = [];
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+
+  // Regex para linha de produto NF:
+  // CÓD  DESCRIÇÃO ... QUANT  V.UNIT  V.TOTAL ...
+  // Ex: "47908 DREAM DES COL SPLSH VIAG/ENC 200ml V2 ... PEC 1 93,42 93,42 ..."
+  const lineRe = /^\d{4,8}\s+(.+?)\s+\d{4}\.\d{2}\.\d{2}.*?\s+(?:PEC|UN|PCT|CX)\s+(\d+)\s+([\d.,]+)/i;
+
+  for (const line of lines) {
+    const m = line.match(lineRe);
+    if (!m) continue;
+
+    let name = m[1].trim();
+    const qty  = parseInt(m[2]);
+    const cost = parseFloat(m[3].replace(/\./g, "").replace(",", "."));
+
+    // Limpar UUIDs e códigos do nome
+    name = name.replace(/[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}/gi, "").trim();
+    name = name.replace(/\s{2,}/g, " ").trim();
+
+    // Ignorar catálogos e itens sem nome
+    if (!name || name.length < 3) continue;
+    if (/CATALOGO/i.test(name)) continue;
+
+    if (qty > 0 && cost > 0) {
+      items.push({ id: items.length, name, qty, cost, sale_price: "", include: true });
+    }
+  }
+
+  return items;
+}
+
+// ── Carregar PDF.js do CDN ────────────────────────────────────────────────────
+function loadPdfJs() {
+  return new Promise((resolve, reject) => {
+    if (window.pdfjsLib) return resolve(window.pdfjsLib);
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    script.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      resolve(window.pdfjsLib);
+    };
+    script.onerror = () => reject(new Error("Falha ao carregar PDF.js"));
+    document.head.appendChild(script);
+  });
+}
+
+// ── Extrair texto de todas as páginas do PDF ──────────────────────────────────
+async function extractPdfText(file) {
+  const pdfjsLib = await loadPdfJs();
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = "";
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    fullText += content.items.map(it => it.str).join(" ") + "\n";
+  }
+  return fullText;
+}
+
+// ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
 export default function ImportNota({ addStock, updateStock, stock, addOrder, clients }) {
   const [stage, setStage]       = useState("idle");
   const [items, setItems]       = useState([]);
@@ -23,66 +98,22 @@ export default function ImportNota({ addStock, updateStock, stock, addOrder, cli
     setStage("uploading");
 
     try {
-      const isImage = file.type.startsWith("image/");
-      const isPDF   = file.type === "application/pdf";
-      if (!isImage && !isPDF) throw new Error("Use uma imagem (JPG, PNG) ou PDF.");
+      if (file.type !== "application/pdf")
+        throw new Error("Por enquanto só PDF é suportado.");
 
-      const base64 = await new Promise((res, rej) => {
-        const r = new FileReader();
-        r.onload  = () => res(r.result.split(",")[1]);
-        r.onerror = () => rej(new Error("Erro ao ler arquivo"));
-        r.readAsDataURL(file);
-      });
+      const text = await extractPdfText(file);
+      const extracted = extractItems(text);
+      const detectedBrand = detectBrand(text);
 
-      const contentBlock = isPDF
-        ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } }
-        : { type: "image",    source: { type: "base64", media_type: file.type,           data: base64 } };
+      if (!extracted.length)
+        throw new Error("Nenhum produto encontrado. Verifique se o PDF é uma nota fiscal válida.");
 
-      const response = await fetch("/api/extract", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [{
-            role: "user",
-            content: [
-              contentBlock,
-              {
-                type: "text",
-                text: `Analise esta nota fiscal de cosméticos e extraia os produtos.
-Retorne SOMENTE JSON válido, sem markdown, sem texto extra:
-{
-  "brand": "avon" ou "natura" ou "boticario" ou "eudora" ou "abelha" ou "",
-  "items": [
-    { "name": "nome limpo do produto sem código", "qty": número inteiro, "cost": preço unitário decimal }
-  ]
-}`,
-              },
-            ],
-          }],
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error?.message || "Erro na IA");
-
-      const text   = data.content.find(b => b.type === "text")?.text || "";
-      const clean  = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
-
-      if (!parsed.items?.length) throw new Error("Nenhum produto encontrado na nota.");
-
-      setItems(parsed.items.map((it, i) => ({
-        id: i, name: it.name || "", qty: Number(it.qty) || 1,
-        cost: Number(it.cost) || 0, sale_price: "", include: true,
-      })));
-
-      if (parsed.brand) setBrand(parsed.brand);
+      setItems(extracted);
+      if (detectedBrand) setBrand(detectedBrand);
       setStage("reviewing");
 
     } catch (e) {
-      setError(e.message || "Erro ao processar nota.");
+      setError(e.message || "Erro ao processar PDF.");
       setStage("idle");
     }
   };
@@ -131,7 +162,9 @@ Retorne SOMENTE JSON válido, sem markdown, sem texto extra:
     show(`${selected.length} produtos importados! ✅`);
   };
 
-  const reset = () => { setStage("idle"); setItems([]); setBrand(""); setClientId(""); setError(""); setFileName(""); setDate(today()); };
+  const reset = () => {
+    setStage("idle"); setItems([]); setBrand(""); setClientId(""); setError(""); setFileName(""); setDate(today());
+  };
 
   const selectedCount = items.filter(it => it.include).length;
   const totalCost     = items.filter(it => it.include).reduce((s, it) => s + it.qty * Number(it.cost), 0);
@@ -145,7 +178,7 @@ Retorne SOMENTE JSON válido, sem markdown, sem texto extra:
         <div className="absolute -top-8 -right-8 w-36 h-36 rounded-full bg-white/10" />
         <div className="relative">
           <h1 className="text-white font-bold text-2xl">Importar Nota</h1>
-          <p className="text-indigo-200 text-sm">IA lê a nota e atualiza seu estoque</p>
+          <p className="text-indigo-200 text-sm">PDF da nota fiscal → estoque automático</p>
         </div>
       </div>
 
@@ -166,26 +199,19 @@ Retorne SOMENTE JSON válido, sem markdown, sem texto extra:
                 style={{ background: "linear-gradient(135deg, #6366F1, #8B5CF6)" }}>
                 <Upload size={28} className="text-white" />
               </div>
-              <p className="font-bold text-gray-700 text-lg">Arraste a nota aqui</p>
+              <p className="font-bold text-gray-700 text-lg">Arraste o PDF aqui</p>
               <p className="text-gray-400 text-sm mt-1">ou clique para selecionar</p>
-              <p className="text-xs text-gray-300 mt-3">JPG, PNG ou PDF</p>
+              <p className="text-xs text-gray-300 mt-3">Apenas PDF</p>
             </div>
-            <input ref={inputRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={onPick} />
+            <input ref={inputRef} type="file" accept="application/pdf" className="hidden" onChange={onPick} />
           </>
         )}
 
         {/* UPLOADING */}
         {stage === "uploading" && (
           <div className="bg-white rounded-3xl p-12 text-center shadow-sm border border-indigo-100">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-              style={{ background: "linear-gradient(135deg, #6366F1, #8B5CF6)" }}>
-              <Sparkles size={24} className="text-white animate-pulse" />
-            </div>
-            <p className="font-bold text-gray-700">Analisando nota fiscal...</p>
-            <p className="text-gray-400 text-sm mt-1">A IA está lendo os produtos 🔍</p>
-            <div className="flex justify-center mt-5">
-              <div className="w-6 h-6 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
-            </div>
+            <div className="w-6 h-6 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin mx-auto mb-4" />
+            <p className="font-bold text-gray-700">Lendo a nota fiscal...</p>
           </div>
         )}
 
@@ -219,7 +245,7 @@ Retorne SOMENTE JSON válido, sem markdown, sem texto extra:
                 <span className="text-sm font-semibold text-indigo-700 truncate max-w-[180px]">{fileName}</span>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-xs text-indigo-400">{selectedCount} selecionados · custo total</p>
+                <p className="text-xs text-indigo-400">{selectedCount} selecionados · custo</p>
                 <p className="font-bold text-indigo-700">{fmt(totalCost)}</p>
               </div>
             </div>
