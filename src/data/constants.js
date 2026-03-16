@@ -46,7 +46,7 @@ export const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard",  Icon: LayoutDashboard },
   { id: "clients",   label: "Clientes",   Icon: Users           },
   { id: "orders",    label: "Pedidos",    Icon: ShoppingBag     },
-  { id: "debts",     label: "Fiado",      Icon: AlertCircle     },
+  { id: "debts",     label: "Pagamentos",      Icon: AlertCircle     },
   { id: "stock",     label: "Estoque",    Icon: Package         },
   { id: "finance",   label: "Financeiro", Icon: TrendingUp      },
   { id: "catalog",   label: "Catálogo",   Icon: BookOpen        },
